@@ -1,0 +1,44 @@
+{
+  "name": "order-service",
+  "version": "1.0.0",
+  "description": "Servicio de gestión de pedidos",
+  "main": "dist/app.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:unit": "jest --testPathPattern=unit --coverage --coverageDirectory=coverage",
+    "test:unit:report": "jest --testPathPattern=unit --coverage --coverageDirectory=coverage && echo Reporte generado en coverage/lcov-report/index.html",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:integration:report": "jest --testPathPattern=integration --coverage --coverageDirectory=coverage-integration && echo Reporte generado en coverage-integration/lcov-report/index.html",
+    "lint": "eslint src/**/*.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "amqplib": "^0.10.3",
+    "cors": "^2.8.5",
+    "csv-stringify": "^6.5.0",
+    "express": "^4.18.2",
+    "mongoose": "^8.0.3"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.4",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.10.5",
+    "@typescript-eslint/eslint-plugin": "^6.17.0",
+    "@typescript-eslint/parser": "^6.17.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "jest-html-reporter": "^3.10.2",
+    "mongodb-memory-server": "^10.3.0",
+    "ts-jest": "^29.1.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
+  }
+}
