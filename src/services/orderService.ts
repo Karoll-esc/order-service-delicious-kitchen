@@ -1,7 +1,11 @@
 import { Order, IOrder, OrderStatus, OrderItem } from '../models/Order';
 import { OrderCancellation } from '../models/OrderCancellation';
 import { IEventPublisher } from '../interfaces/IEventPublisher';
-import { ORDER_EVENT_NAMES } from '../constants/orderStates';
+import { 
+  ORDER_EVENT_NAMES,
+  CUSTOMER_CANCELLABLE_STATES,
+  ADMIN_CANCELLABLE_STATES
+} from '../constants/orderStates';
 
 export class OrderService {
   /**
@@ -215,14 +219,41 @@ export class OrderService {
         throw new Error(`Pedido ${orderId} no encontrado`);
       }
 
-      // Validar que solo se puede cancelar si está en estado PENDING o RECEIVED
-      const cancellableStatuses = [OrderStatus.PENDING, OrderStatus.RECEIVED];
+      // TC-006.4: Verificación idempotente - si ya está cancelado, retornar sin error
+      if (order.status === OrderStatus.CANCELLED) {
+        console.log(`ℹ️ Pedido ${order.orderNumber} ya estaba cancelado previamente`);
+        return order;
+      }
 
-      if (!cancellableStatuses.includes(order.status)) {
-        throw new Error(
-          `No se puede cancelar un pedido en estado "${order.status}". ` +
-          `Solo se pueden cancelar pedidos pendientes o recibidos en cocina.`
+      // TC-006.1 y TC-006.2: Validación basada en rol
+      const allowedStates = cancelledBy === 'customer' 
+        ? CUSTOMER_CANCELLABLE_STATES 
+        : ADMIN_CANCELLABLE_STATES;
+
+      if (!allowedStates.includes(order.status)) {
+        // Logging de intento fallido
+        console.warn(
+          `⚠️ Intento de cancelación rechazado | ` +
+          `Pedido: ${order.orderNumber} | ` +
+          `Estado: ${order.status} | ` +
+          `Solicitado por: ${cancelledBy} | ` +
+          `Timestamp: ${new Date().toISOString()}`
         );
+
+        // Mensajes contextuales según rol
+        if (cancelledBy === 'customer') {
+          throw new Error(
+            `Los clientes solo pueden cancelar pedidos pendientes o recibidos. ` +
+            `Estado actual del pedido: "${order.status}". ` +
+            `Para cancelar este pedido, contacte al administrador.`
+          );
+        } else {
+          // Admin - estados no permitidos son COMPLETED, CANCELLED y DELIVERED
+          throw new Error(
+            `No se puede cancelar pedidos en estado final: "${order.status}". ` +
+            `Los pedidos completados o cancelados no son modificables.`
+          );
+        }
       }
 
       // Guardar historial de cancelación antes de actualizar
@@ -230,7 +261,7 @@ export class OrderService {
         orderId: order._id.toString(),
         orderNumber: order.orderNumber,
         customerName: order.customerName,
-        customerEmail: order.customerName,
+        customerEmail: order.customerEmail,
         reason: reason || 'Sin especificar',
         previousStatus: order.status,
         cancelledBy,
@@ -241,9 +272,29 @@ export class OrderService {
       console.log(`📝 Cancelación registrada: ${order.orderNumber}`);
 
       // Actualizar estado del pedido a CANCELLED
+      const previousStatus = order.status;
       order.status = OrderStatus.CANCELLED;
       order.updatedAt = new Date();
-      const cancelledOrder = await order.save();
+      
+      // TC-006.3: Optimistic locking - detectar cambios concurrentes
+      let cancelledOrder: IOrder;
+      try {
+        cancelledOrder = await order.save();
+      } catch (saveError: any) {
+        // Detectar VersionError de Mongoose (campo __v cambió)
+        if (saveError.name === 'VersionError' || saveError.message?.includes('version')) {
+          console.warn(
+            `⚠️ Race condition detectado | ` +
+            `Pedido: ${order.orderNumber} | ` +
+            `Timestamp: ${new Date().toISOString()}`
+          );
+          throw new Error(
+            `Conflicto detectado: el pedido cambió de estado durante la operación. ` +
+            `Intente nuevamente.`
+          );
+        }
+        throw saveError;
+      }
 
       // Publicar evento order.cancelled para notification-service
       const eventData = {
@@ -251,8 +302,8 @@ export class OrderService {
         orderId: cancelledOrder._id.toString(),
         orderNumber: cancelledOrder.orderNumber,
         customerName: cancelledOrder.customerName,
-        customerEmail: order.customerName,
-        previousStatus: cancellation.previousStatus,
+        customerEmail: order.customerEmail,
+        previousStatus: previousStatus,
         reason: reason || 'Sin especificar',
         cancelledBy,
         timestamp: new Date().toISOString(),

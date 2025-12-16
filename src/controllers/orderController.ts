@@ -162,6 +162,7 @@ export class OrderController {
       }
 
       const cancelledByValue = cancelledBy || 'customer';
+      
       if (!['customer', 'admin'].includes(cancelledByValue)) {
         ResponseBuilder.badRequest(res, 'cancelledBy debe ser "customer" o "admin"');
         return;
@@ -189,8 +190,19 @@ export class OrderController {
     } catch (error: any) {
       console.error('❌ Error en cancelOrder:', error);
 
+      // Validar si es error de race condition (conflicto)
+      if (error.message.includes('Conflicto detectado')) {
+        res.status(409).json({
+          success: false,
+          message: error.message,
+          error: 'CONFLICT'
+        });
+        return;
+      }
+
       // Validar si es error por estado inválido
-      if (error.message.includes('No se puede cancelar')) {
+      if (error.message.includes('No se puede cancelar') || 
+          error.message.includes('solo pueden cancelar')) {
         ResponseBuilder.badRequest(res, error.message);
         return;
       }
