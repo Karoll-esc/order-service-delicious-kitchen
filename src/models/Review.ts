@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { MONGO_COLLECTIONS } from '../constants/collections';
 
 /**
  * Interface que define la estructura de una reseña
@@ -86,7 +87,8 @@ const ReviewSchema: Schema = new Schema(
   },
   {
     timestamps: true, // Agrega createdAt y updatedAt automáticamente
-    versionKey: false // Elimina __v
+    versionKey: false, // Elimina __v
+    collection: MONGO_COLLECTIONS.REVIEWS // Especifica nombre de colección explícitamente
   }
 );
 

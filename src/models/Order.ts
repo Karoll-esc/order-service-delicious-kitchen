@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { MONGO_COLLECTIONS } from '../constants/collections';
 
 // Enum para los estados del pedido
 export enum OrderStatus {
@@ -91,7 +92,7 @@ const OrderSchema = new Schema({
   }
 }, {
   timestamps: true,
-  collection: 'orders'
+  collection: MONGO_COLLECTIONS.ORDERS // Usa constante centralizada
 });
 
 // Middleware para calcular el total antes de guardar

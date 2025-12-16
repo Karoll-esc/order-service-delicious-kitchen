@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { MONGO_COLLECTIONS } from '../constants/collections';
 
 export interface IOrderCancellation extends Document {
   orderId: string;
@@ -43,7 +44,7 @@ const OrderCancellationSchema = new Schema({
   }
 }, { 
   timestamps: true,
-  collection: 'order_cancellations'
+  collection: MONGO_COLLECTIONS.ORDER_CANCELLATIONS // Usa constante centralizada
 });
 
 export const OrderCancellation = mongoose.model<IOrderCancellation>(
