@@ -162,6 +162,7 @@ export class OrderController {
       }
 
       const cancelledByValue = cancelledBy || 'customer';
+      
       if (!['customer', 'admin'].includes(cancelledByValue)) {
         ResponseBuilder.badRequest(res, 'cancelledBy debe ser "customer" o "admin"');
         return;
