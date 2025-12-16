@@ -1,6 +1,7 @@
 import { Order, IOrder, OrderStatus, OrderItem } from '../models/Order';
 import { OrderCancellation } from '../models/OrderCancellation';
 import { IEventPublisher } from '../interfaces/IEventPublisher';
+import { ORDER_EVENT_NAMES } from '../constants/orderStates';
 
 export class OrderService {
   /**
@@ -43,7 +44,7 @@ export class OrderService {
 
       // Publicar evento order.created a RabbitMQ con estructura enriquecida
       const eventData = {
-        type: 'order.created',
+        type: ORDER_EVENT_NAMES.CREATED,
         orderId: savedOrder._id.toString(),
         userId: savedOrder._id.toString(), // Usamos el orderId como identificador del usuario por ahora
         orderNumber: savedOrder.orderNumber,
@@ -64,7 +65,7 @@ export class OrderService {
         }
       };
 
-      await this.eventPublisher.publishEvent('order.created', eventData);
+      await this.eventPublisher.publishEvent(ORDER_EVENT_NAMES.CREATED, eventData);
 
       console.log(`✅ Pedido creado: ${savedOrder.orderNumber}`);
 
@@ -162,7 +163,7 @@ export class OrderService {
       await order.save();
 
       // Publicar evento de actualización
-      await this.eventPublisher.publishEvent('order.updated', {
+      await this.eventPublisher.publishEvent(ORDER_EVENT_NAMES.STATUS_UPDATED, {
         orderId: order._id.toString(),
         orderNumber: order.orderNumber,
         status: order.status,
@@ -215,9 +216,9 @@ export class OrderService {
       }
 
       // Validar que solo se puede cancelar si está en estado PENDING o RECEIVED
-      const cancellableStatuses = [OrderStatus.PENDING, 'received']; // 'received' es desde Kitchen Service
+      const cancellableStatuses = [OrderStatus.PENDING, OrderStatus.RECEIVED];
 
-      if (!cancellableStatuses.includes(order.status as any)) {
+      if (!cancellableStatuses.includes(order.status)) {
         throw new Error(
           `No se puede cancelar un pedido en estado "${order.status}". ` +
           `Solo se pueden cancelar pedidos pendientes o recibidos en cocina.`
@@ -246,7 +247,7 @@ export class OrderService {
 
       // Publicar evento order.cancelled para notification-service
       const eventData = {
-        type: 'order.cancelled',
+        type: ORDER_EVENT_NAMES.CANCELLED,
         orderId: cancelledOrder._id.toString(),
         orderNumber: cancelledOrder.orderNumber,
         customerName: cancelledOrder.customerName,
@@ -262,8 +263,8 @@ export class OrderService {
         }
       };
 
-      await this.eventPublisher.publishEvent('order.cancelled', eventData);
-      console.log(`📤 Evento publicado: order.cancelled para ${cancelledOrder.orderNumber}`);
+      await this.eventPublisher.publishEvent(ORDER_EVENT_NAMES.CANCELLED, eventData);
+      console.log(`📤 Evento publicado: ${ORDER_EVENT_NAMES.CANCELLED} para ${cancelledOrder.orderNumber}`);
 
       return cancelledOrder;
     } catch (error) {
