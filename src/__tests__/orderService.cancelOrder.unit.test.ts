@@ -2,17 +2,10 @@ import { OrderService } from '../services/orderService';
 import { Order, OrderStatus } from '../models/Order';
 import { OrderCancellation } from '../models/OrderCancellation';
 import { rabbitMQClient } from '../rabbitmq/rabbitmqClient';
+import { ORDER_EVENT_NAMES } from '../constants/orderStates';
 
-jest.mock('../../models/Order', () => {
-  const OrderStatus = {
-    PENDING: 'pending',
-    PREPARING: 'preparing',
-    READY: 'ready',
-    DELIVERED: 'delivered',
-    CANCELLED: 'cancelled',
-  };
+jest.mock('../models/Order', () => {
   return {
-    OrderStatus,
     Order: {
       findById: jest.fn(),
       findOne: jest.fn(),
@@ -20,13 +13,13 @@ jest.mock('../../models/Order', () => {
   };
 });
 
-jest.mock('../../models/OrderCancellation', () => {
+jest.mock('../models/OrderCancellation', () => {
   const mockInstance = { save: jest.fn().mockResolvedValue(undefined) };
   const OrderCancellation = jest.fn(() => mockInstance);
   return { OrderCancellation };
 });
 
-jest.mock('../../rabbitmq/rabbitmqClient', () => ({
+jest.mock('../rabbitmq/rabbitmqClient', () => ({
   rabbitMQClient: {
     publishEvent: jest.fn().mockResolvedValue(undefined),
   },
@@ -37,7 +30,10 @@ describe('OrderService.cancelOrder - Unit', () => {
   let baseOrder: any;
 
   beforeEach(() => {
-    service = new OrderService();
+    const mockEventPublisher = {
+      publishEvent: rabbitMQClient.publishEvent
+    };
+    service = new OrderService(mockEventPublisher as any);
 
     baseOrder = {
       _id: 'order-123',
@@ -66,9 +62,9 @@ describe('OrderService.cancelOrder - Unit', () => {
     expect(baseOrder.save).toHaveBeenCalledTimes(1);
     expect(OrderCancellation).toHaveBeenCalledTimes(1);
     expect(rabbitMQClient.publishEvent).toHaveBeenCalledWith(
-      'order.cancelled',
+      ORDER_EVENT_NAMES.CANCELLED,
       expect.objectContaining({
-        type: 'order.cancelled',
+        type: ORDER_EVENT_NAMES.CANCELLED,
         orderId: 'order-123',
         reason: 'Cambié de idea',
         cancelledBy: 'customer',
@@ -121,9 +117,9 @@ describe('OrderService.cancelOrder - Unit', () => {
     (Order.findById as jest.Mock).mockResolvedValue({ ...baseOrder });
     await service.cancelOrder('order-123', 'test', 'admin');
     expect(rabbitMQClient.publishEvent).toHaveBeenCalledWith(
-      'order.cancelled',
+      ORDER_EVENT_NAMES.CANCELLED,
       expect.objectContaining({
-        type: 'order.cancelled',
+        type: ORDER_EVENT_NAMES.CANCELLED,
         orderId: 'order-123',
         orderNumber: 'ORD-1234567890-001',
         cancelledBy: 'admin',
