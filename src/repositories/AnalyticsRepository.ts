@@ -28,10 +28,10 @@ export class AnalyticsRepository implements IAnalyticsRepository {
     const fromDate = new Date(`${from}T00:00:00.000Z`);
     const toDate = new Date(`${to}T23:59:59.999Z`);
 
-    // Validar rango máximo
+    // Validar rango máximo (10 años)
     const monthsDiff = (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
-    if (monthsDiff > 12) {
-      throw Object.assign(new Error('El rango de fechas excede el máximo permitido'), { code: 'RANGE_EXCEEDED' });
+    if (monthsDiff > 120) {
+      throw Object.assign(new Error('El rango de fechas excede el máximo permitido (10 años)'), { code: 'RANGE_EXCEEDED' });
     }
 
     // Usar estrategia de agrupación
