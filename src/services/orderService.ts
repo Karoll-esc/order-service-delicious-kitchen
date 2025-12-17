@@ -338,6 +338,21 @@ export class OrderService {
   }
 
   /**
+   * Obtiene todas las cancelaciones del sistema (para admin)
+   */
+  async getAllCancellations(): Promise<any[]> {
+    try {
+      const cancellations = await OrderCancellation.find()
+        .sort({ cancelledAt: -1 }) // Más recientes primero
+        .limit(100); // Limitar a 100 registros
+      return cancellations;
+    } catch (error) {
+      console.error('❌ Error obteniendo todas las cancelaciones:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Genera un número de pedido único
    * @returns Número de pedido único
    */
