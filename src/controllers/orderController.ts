@@ -246,6 +246,19 @@ export class OrderController {
       ResponseBuilder.serverError(res, 'Error al obtener historial de cancelación', error.message);
     }
   }
+
+  /**
+   * GET /cancellations - Obtener todas las cancelaciones (Admin)
+   */
+  async getAllCancellations(req: Request, res: Response): Promise<void> {
+    try {
+      const cancellations = await orderService.getAllCancellations();
+      ResponseBuilder.ok(res, { cancellations });
+    } catch (error: any) {
+      console.error('❌ Error en getAllCancellations:', error);
+      ResponseBuilder.serverError(res, 'Error al obtener cancelaciones', error.message);
+    }
+  }
 }
 
 export const orderController = new OrderController();
