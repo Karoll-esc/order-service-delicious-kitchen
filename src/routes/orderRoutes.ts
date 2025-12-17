@@ -43,6 +43,12 @@ router.post('/:id/cancel', (req: Request, res: Response) => {
   orderController.cancelOrder(req, res);
 });
 
+// GET /cancellations/all - Obtener todas las cancelaciones (Admin)
+// IMPORTANTE: Debe ir ANTES de /:id/cancellation para evitar conflictos de ruta
+router.get('/cancellations/all', (req: Request, res: Response) => {
+  orderController.getAllCancellations(req, res);
+});
+
 // GET /orders/:id/cancellation - Obtener historial de cancelación
 router.get('/:id/cancellation', (req: Request, res: Response) => {
   orderController.getOrderCancellation(req, res);
