@@ -29,17 +29,21 @@ export class WeekGroupingStrategy implements IGroupingStrategy {
 
   formatPeriod(date: Date): string {
     // ISO week format
-    const year = date.getFullYear();
-    const week = this.getWeekNumber(date);
+    const { year, week } = this.getISOWeekAndYear(date);
     return `${year}-${String(week).padStart(2, '0')}`;
   }
 
-  private getWeekNumber(date: Date): number {
+  private getISOWeekAndYear(date: Date): { year: number; week: number } {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
     const dayNum = d.getUTCDay() || 7;
     d.setUTCDate(d.getUTCDate() + 4 - dayNum);
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    return { year: d.getUTCFullYear(), week: weekNumber };
+  }
+
+  private getWeekNumber(date: Date): number {
+    return this.getISOWeekAndYear(date).week;
   }
 
   getGroupBy(): GroupBy {

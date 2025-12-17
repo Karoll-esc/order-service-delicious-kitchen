@@ -68,6 +68,14 @@ export class ReviewController {
       });
     } catch (error: any) {
       // Manejo de errores específicos
+      if (error.message === 'Review already exists for this order') {
+        res.status(409).json({
+          success: false,
+          message: error.message
+        });
+        return;
+      }
+
       if (error.message.includes('required') ||
           error.message.includes('must be') ||
           error.message.includes('exceed')) {
@@ -136,6 +144,14 @@ export class ReviewController {
       const { id } = req.params;
 
       const review = await this.reviewService.getReviewById(id);
+
+      if (!review) {
+        res.status(404).json({
+          success: false,
+          message: 'Review not found'
+        });
+        return;
+      }
 
       res.status(200).json({
         success: true,
