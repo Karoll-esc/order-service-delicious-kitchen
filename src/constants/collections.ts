@@ -25,7 +25,12 @@ export const MONGO_COLLECTIONS = {
   /**
    * Colección de historial de cancelaciones
    */
-  ORDER_CANCELLATIONS: 'order_cancellations'
+  ORDER_CANCELLATIONS: 'order_cancellations',
+  
+  /**
+   * Colección de encuestas de proceso (feedback durante preparación)
+   */
+  SURVEYS: 'surveys'
 } as const;
 
 /**
