@@ -2,17 +2,20 @@ import { Request, Response } from 'express';
 import { IAnalyticsService } from '../interfaces/IAnalyticsService';
 import { AnalyticsService } from '../services/analyticsService';
 import { AnalyticsRepository } from '../repositories/AnalyticsRepository';
+import { AnalyticsValidationService } from '../services/AnalyticsValidationService';
 import { Order } from '../models/Order';
 
 /**
  * Controller de analíticas refactorizado
  * Cumple con Dependency Inversion Principle: Usa interfaces
  * Cumple con Single Responsibility: Solo orquestación HTTP
+ * HU-022: Incluye validación automática de consistencia
  */
 
 // Configuración de inyección de dependencias
 const repository = new AnalyticsRepository(Order);
 const service: IAnalyticsService = new AnalyticsService(repository);
+const validationService = new AnalyticsValidationService(Order, repository); // HU-022
 
 export async function getInternalAnalytics(req: Request, res: Response) {
   try {
@@ -85,6 +88,51 @@ export async function postInternalAnalyticsExport(req: Request, res: Response) {
     return res.status(500).json({ 
       error: 'INTERNAL_ERROR', 
       message: 'Error interno procesando la solicitud' 
+    });
+  }
+}
+
+/**
+ * HU-022 TC-022-B01: Endpoint para validar consistencia de analytics
+ * Permite ejecutar validación on-demand desde panel de administración
+ * 
+ * @route POST /internal/analytics/validate
+ * @access Admin only
+ */
+export async function postInternalAnalyticsValidate(req: Request, res: Response) {
+  try {
+    const { from, to, groupBy, top } = req.body || {};
+    
+    // Validación de parámetros
+    if (!from || !to || !groupBy) {
+      return res.status(400).json({ 
+        error: 'VALIDATION_ERROR', 
+        message: 'Parámetros requeridos: from, to, groupBy' 
+      });
+    }
+
+    // Ejecutar validación
+    const validationResult = await validationService.validateAnalyticsConsistency({
+      from,
+      to,
+      groupBy,
+      top: top || 10
+    });
+
+    // Responder con resultado
+    return res.status(200).json({
+      success: validationResult.isValid,
+      message: validationResult.isValid 
+        ? 'Validación exitosa: Los reportes coinciden con la base de datos' 
+        : 'Validación completada: Se detectaron discrepancias',
+      validation: validationResult
+    });
+
+  } catch (err: any) {
+    console.error('[Analytics Validation] Error:', err);
+    return res.status(500).json({ 
+      error: 'INTERNAL_ERROR', 
+      message: 'Error ejecutando validación de consistencia' 
     });
   }
 }
