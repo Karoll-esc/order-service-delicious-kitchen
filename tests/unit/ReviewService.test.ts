@@ -13,6 +13,7 @@ class MockReviewRepository implements IReviewRepository {
     const review = {
       _id: `mock-id-${this.idCounter++}` as any,
       ...reviewData,
+      orderNumber: reviewData.orderNumber || 'N/A',
       status: 'pending' as ReviewStatus,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -54,10 +55,6 @@ class MockReviewRepository implements IReviewRepository {
     return this.reviews.length;
   }
 
-  async hasReviewForOrder(orderId: string): Promise<boolean> {
-    return this.reviews.some(r => r.orderId === orderId);
-  }
-
   // Helper method for tests to reset state
   reset(): void {
     this.reviews = [];
@@ -81,13 +78,11 @@ describe('ReviewService - Unit Tests', () => {
   describe('createReview', () => {
     test('should create a review with valid data', async () => {
       const reviewData: CreateReviewDTO = {
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John Doe',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        },
+        foodRating: 5,
+        tasteRating: 5,
         comment: 'Excellent service!'
       };
 
@@ -95,10 +90,10 @@ describe('ReviewService - Unit Tests', () => {
 
       expect(result).toBeDefined();
       expect(result._id).toBeDefined();
-      expect(result.orderId).toBe('ORD-001');
+      expect(result.orderNumber).toBe('ORD-001');
       expect(result.customerName).toBe('John Doe');
-      expect(result.ratings.overall).toBe(5);
-      expect(result.ratings.food).toBe(5);
+      expect(result.foodRating).toBe(5);
+      expect(result.tasteRating).toBe(5);
       expect(result.comment).toBe('Excellent service!');
       expect(result.status).toBe('pending');
       expect(result.createdAt).toBeInstanceOf(Date);
@@ -106,19 +101,32 @@ describe('ReviewService - Unit Tests', () => {
 
     test('should create a review without comment', async () => {
       const reviewData: CreateReviewDTO = {
-        orderId: 'ORD-002',
+        orderNumber: 'ORD-002',
         customerName: 'Jane Smith',
         customerEmail: 'jane@example.com',
-        ratings: {
-          overall: 4,
-          food: 5
-        }
+        foodRating: 4,
+        tasteRating: 5
       };
 
       const result = await reviewService.createReview(reviewData);
 
       expect(result).toBeDefined();
       expect(result.comment).toBeUndefined();
+    });
+
+    test('should create review without orderNumber (anonymous)', async () => {
+      const reviewData: CreateReviewDTO = {
+        customerName: 'Anonymous User',
+        customerEmail: 'anon@example.com',
+        foodRating: 5,
+        tasteRating: 4
+      };
+
+      const result = await reviewService.createReview(reviewData);
+
+      expect(result).toBeDefined();
+      expect(result.orderNumber).toBe('N/A');
+      expect(result.status).toBe('pending');
     });
 
     test('should throw error when orderId is missing', async () => {

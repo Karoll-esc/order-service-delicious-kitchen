@@ -5,6 +5,7 @@ import { connectDatabase } from './config/database';
 import { rabbitMQClient } from './rabbitmq/rabbitmqClient';
 import orderRoutes from './routes/orderRoutes';
 import reviewRoutes from './routes/reviewRoutes';
+import surveyRoutes from './routes/surveyRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import { orderService } from './services/orderService';
 import { OrderStatus } from './models/Order';
@@ -30,6 +31,7 @@ app.get('/health', (req: Request, res: Response) => {
 // Rutas
 app.use('/orders', orderRoutes);
 app.use('/reviews', reviewRoutes);
+app.use('/surveys', surveyRoutes);
 app.use('/', analyticsRoutes);
 
 // 404 handler
@@ -61,7 +63,40 @@ async function startServer(): Promise<void> {
     await rabbitMQClient.connect();
     console.log('✅ RabbitMQ conectado');
 
-    // 3. Suscribirse al evento order.ready del Kitchen Service
+    // 3. Suscribirse a eventos del Kitchen Service
+
+    // 3a. Consumer para order.preparing (HU-006: sincronización de estados)
+    console.log('👂 Suscribiendo a eventos order.preparing...');
+    await rabbitMQClient.consumeEvent('order.preparing', async (message) => {
+      try {
+        const { orderId } = message;
+
+        if (!orderId) {
+          console.warn('⚠️ Mensaje order.preparing sin orderId:', message);
+          return;
+        }
+
+        console.log(`🔄 Actualizando estado del pedido ${orderId} a PREPARING`);
+
+        // Actualizar el estado del pedido a PREPARING
+        const updatedOrder = await orderService.updateOrderStatus(
+          orderId,
+          OrderStatus.PREPARING
+        );
+
+        if (updatedOrder) {
+          console.log(`✅ Pedido ${updatedOrder.orderNumber} actualizado a estado PREPARING`);
+        } else {
+          console.warn(`⚠️ No se encontró el pedido con ID: ${orderId}`);
+        }
+      } catch (error) {
+        console.error('❌ Error procesando evento order.preparing:', error);
+        throw error; // Re-lanzar para que el mensaje se rechace
+      }
+    });
+    console.log('✅ Consumer listo para order.preparing');
+
+    // 3b. Consumer para order.ready
     console.log('👂 Suscribiendo a eventos order.ready...');
     await rabbitMQClient.consumeEvent('order.ready', async (message) => {
       try {
@@ -107,7 +142,7 @@ async function startServer(): Promise<void> {
       console.log(`   GET    /reviews - Listar reseñas aprobadas`);
       console.log(`   GET    /reviews/:id - Obtener reseña`);
       console.log(`   PATCH  /reviews/:id/status - Cambiar estado (admin)`);
-      console.log(`📥 Consumiendo eventos: order.ready`);
+      console.log(`📥 Consumiendo eventos: order.preparing, order.ready`);
     });
 
     // Manejo de cierre graceful

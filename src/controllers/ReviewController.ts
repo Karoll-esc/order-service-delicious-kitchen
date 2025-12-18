@@ -20,40 +20,44 @@ export class ReviewController {
   /**
    * POST /reviews - Crear una nueva reseña
    *
+   * HU-014: Sistema de Reseñas Públicas
    * Body esperado:
    * {
-   *   orderId: string,
+   *   orderNumber?: string,  // OPCIONAL - puede ser "N/A"
    *   customerName: string,
    *   customerEmail: string,
-   *   ratings: { overall: number, food: number },
+   *   foodRating: number,    // 1-5
+   *   tasteRating: number,   // 1-5
    *   comment?: string
    * }
    *
    * Respuestas:
    * - 201: Reseña creada exitosamente
    * - 400: Validación fallida
-   * - 409: El pedido ya tiene una reseña
    * - 500: Error del servidor
    */
   async createReview(req: Request, res: Response): Promise<void> {
     try {
-      const { orderId, customerName, customerEmail, ratings, comment } = req.body;
+      const { orderNumber, customerName, customerEmail, foodRating, tasteRating, comment } = req.body;
 
-      // Validación básica de estructura
-      if (!orderId || !customerName || !customerEmail || !ratings) {
+      // HU-014: Validación básica de estructura (orderNumber ahora es opcional)
+      if (!customerName || !customerEmail || 
+          foodRating === undefined || foodRating === null ||
+          tasteRating === undefined || tasteRating === null) {
         res.status(400).json({
           success: false,
-          message: 'Missing required fields: orderId, customerName, customerEmail, ratings'
+          message: 'Missing required fields: customerName, customerEmail, foodRating, tasteRating'
         });
         return;
       }
 
       // Crear reseña (las validaciones detalladas están en el Service)
       const review = await this.reviewService.createReview({
-        orderId,
+        orderNumber: orderNumber || undefined,
         customerName,
         customerEmail,
-        ratings,
+        foodRating,
+        tasteRating,
         comment: comment || ''
       });
 
@@ -64,7 +68,7 @@ export class ReviewController {
       });
     } catch (error: any) {
       // Manejo de errores específicos
-      if (error.message.includes('already has a review')) {
+      if (error.message === 'Review already exists for this order') {
         res.status(409).json({
           success: false,
           message: error.message
@@ -140,6 +144,14 @@ export class ReviewController {
       const { id } = req.params;
 
       const review = await this.reviewService.getReviewById(id);
+
+      if (!review) {
+        res.status(404).json({
+          success: false,
+          message: 'Review not found'
+        });
+        return;
+      }
 
       res.status(200).json({
         success: true,

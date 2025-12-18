@@ -1,13 +1,9 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { MONGO_COLLECTIONS } from '../constants/collections';
+import { OrderStatus } from '../constants/orderStates';
 
-// Enum para los estados del pedido
-export enum OrderStatus {
-  PENDING = 'pending',           // Pedido creado, esperando procesamiento
-  PREPARING = 'preparing',       // En cocina, siendo preparado
-  READY = 'ready',               // Listo para entregar
-  DELIVERED = 'delivered',       // Entregado al cliente
-  CANCELLED = 'cancelled'        // Pedido cancelado
-}
+// Re-exportar OrderStatus para mantener compatibilidad con código existente
+export { OrderStatus } from '../constants/orderStates';
 
 // Interfaz para el documento Order
 export interface IOrder extends Document {
@@ -91,7 +87,7 @@ const OrderSchema = new Schema({
   }
 }, {
   timestamps: true,
-  collection: 'orders'
+  collection: MONGO_COLLECTIONS.ORDERS // Usa constante centralizada
 });
 
 // Middleware para calcular el total antes de guardar

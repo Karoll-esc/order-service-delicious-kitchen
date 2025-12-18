@@ -24,34 +24,31 @@ export class ReviewService {
    * Crea una nueva reseña con validaciones de negocio
    * Patrón: Strategy Pattern (validaciones extensibles)
    *
+   * HU-014: Sistema de Reseñas Públicas
    * Validaciones aplicadas:
-   * 1. Campos requeridos (ratings.overall, ratings.food)
-   * 2. Rangos de calificación (1-5)
+   * 1. Campos requeridos (foodRating, tasteRating, customerName, customerEmail)
+   * 2. Rangos de calificación (1-5, enteros)
    * 3. Longitud de comentario (max 500)
-   * 4. Prevención de duplicados por orderId
+   * 
+   * orderNumber es OPCIONAL - puede ser "N/A" para reviews sin pedido asociado
    *
    * @param reviewData - Datos de la reseña a crear
    * @returns Reseña creada con estado "pending"
-   * @throws Error si las validaciones fallan o el pedido ya tiene reseña
+   * @throws Error si las validaciones fallan
    */
   async createReview(reviewData: CreateReviewDTO): Promise<IReview> {
-    // Validación 1: Campos obligatorios
+    // Validación 1: Campos obligatorios (orderNumber ahora es opcional)
     this.validateRequiredFields(reviewData);
 
     // Validación 2: Rangos de calificación
-    this.validateRatings(reviewData.ratings);
+    this.validateRatings(reviewData.foodRating, reviewData.tasteRating);
 
     // Validación 3: Longitud de comentario
     if (reviewData.comment) {
       this.validateCommentLength(reviewData.comment);
     }
 
-    // Validación 4: Verificar que el pedido no tenga ya una reseña
-    const hasReview = await this.reviewRepository.hasReviewForOrder(reviewData.orderId);
-    if (hasReview) {
-      throw new Error('This order already has a review');
-    }
-
+    // HU-014: No se valida duplicados ni existencia de pedido
     // Crear reseña con estado "pending" por defecto
     return await this.reviewRepository.create(reviewData);
   }
@@ -167,13 +164,13 @@ export class ReviewService {
   /**
    * Validación: Campos requeridos
    * Principio SOLID: Single Responsibility - Método con una sola responsabilidad
+   * 
+   * HU-014: orderNumber es OPCIONAL
    * @private
    */
   private validateRequiredFields(reviewData: CreateReviewDTO): void {
-    if (!reviewData.orderId?.trim()) {
-      throw new Error('Order ID is required');
-    }
-
+    // orderNumber es opcional en HU-014
+    
     if (!reviewData.customerName?.trim()) {
       throw new Error('Customer name is required');
     }
@@ -182,39 +179,36 @@ export class ReviewService {
       throw new Error('Customer email is required');
     }
 
-    if (!reviewData.ratings) {
-      throw new Error('Ratings are required');
-    }
-
-    if (reviewData.ratings.overall === undefined || reviewData.ratings.overall === null) {
-      throw new Error('Overall rating is required');
-    }
-
-    if (reviewData.ratings.food === undefined || reviewData.ratings.food === null) {
+    if (reviewData.foodRating === undefined || reviewData.foodRating === null) {
       throw new Error('Food rating is required');
+    }
+
+    if (reviewData.tasteRating === undefined || reviewData.tasteRating === null) {
+      throw new Error('Taste rating is required');
     }
   }
 
   /**
    * Validación: Rangos de calificación (1-5)
+   * HU-014: foodRating y tasteRating son campos directos
    * @private
    */
-  private validateRatings(ratings: { overall: number; food: number }): void {
-    if (ratings.overall < 1 || ratings.overall > 5) {
-      throw new Error('Overall rating must be between 1 and 5');
-    }
-
-    if (ratings.food < 1 || ratings.food > 5) {
+  private validateRatings(foodRating: number, tasteRating: number): void {
+    if (foodRating < 1 || foodRating > 5) {
       throw new Error('Food rating must be between 1 and 5');
     }
 
-    // Validar que sean números enteros
-    if (!Number.isInteger(ratings.overall)) {
-      throw new Error('Overall rating must be an integer');
+    if (tasteRating < 1 || tasteRating > 5) {
+      throw new Error('Taste rating must be between 1 and 5');
     }
 
-    if (!Number.isInteger(ratings.food)) {
+    // Validar que sean números enteros
+    if (!Number.isInteger(foodRating)) {
       throw new Error('Food rating must be an integer');
+    }
+
+    if (!Number.isInteger(tasteRating)) {
+      throw new Error('Taste rating must be an integer');
     }
   }
 

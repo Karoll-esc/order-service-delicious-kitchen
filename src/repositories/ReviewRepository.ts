@@ -16,21 +16,22 @@ export interface IReviewRepository {
   updateStatus(id: string, status: 'pending' | 'approved' | 'hidden'): Promise<IReview | null>;
   countApproved(): Promise<number>;
   countAll(): Promise<number>;
-  hasReviewForOrder(orderId: string): Promise<boolean>;
 }
 
 /**
  * DTO (Data Transfer Object) para creación de reseñas
  * Principio SOLID: Single Responsibility - Define estructura de datos de entrada
+ * 
+ * HU-014: Sistema de Reseñas Públicas
+ * - orderNumber es opcional (puede ser "N/A")
+ * - foodRating y tasteRating son campos directos (no anidados)
  */
 export interface CreateReviewDTO {
-  orderId: string;
+  orderNumber?: string;
   customerName: string;
   customerEmail: string;
-  ratings: {
-    overall: number;
-    food: number;
-  };
+  foodRating: number;
+  tasteRating: number;
   comment?: string;
 }
 
@@ -50,19 +51,16 @@ export class ReviewRepository implements IReviewRepository {
    */
   async create(reviewData: CreateReviewDTO): Promise<IReview> {
     try {
+      // HU-014: Asignar "N/A" si orderNumber no se proporciona
       const review = new Review({
         ...reviewData,
+        orderNumber: reviewData.orderNumber || 'N/A',
         status: 'pending' // Reviews requieren aprobación del administrador antes de ser visibles
       });
 
       await review.save();
       return review;
     } catch (error: any) {
-      // Manejo específico de errores de duplicado (código 11000 de MongoDB)
-      if (error.code === 11000) {
-        throw new Error('A review already exists for this order');
-      }
-
       // Manejo de errores de validación de Mongoose
       if (error.name === 'ValidationError') {
         const messages = Object.values(error.errors)
@@ -159,17 +157,6 @@ export class ReviewRepository implements IReviewRepository {
    */
   async countAll(): Promise<number> {
     return await Review.countDocuments();
-  }
-
-  /**
-   * Verifica si un pedido ya tiene una reseña
-   * Previene reseñas duplicadas del mismo pedido
-   * @param orderId - ID del pedido
-   * @returns true si ya existe reseña, false si no
-   */
-  async hasReviewForOrder(orderId: string): Promise<boolean> {
-    const count = await Review.countDocuments({ orderId });
-    return count > 0;
   }
 }
 
