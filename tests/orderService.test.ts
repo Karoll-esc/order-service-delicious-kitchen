@@ -1,11 +1,13 @@
 import { OrderService } from '../src/services/orderService';
 import { Order, OrderStatus, OrderItem } from '../src/models/Order';
 import { rabbitMQClient } from '../src/rabbitmq/rabbitmqClient';
+import { RabbitMQEventPublisher } from '../src/adapters/RabbitMQEventPublisher';
 
 // Mock de rabbitMQClient ya está en setup.ts
 
 describe('OrderService', () => {
   let orderService: OrderService;
+  let eventPublisher: RabbitMQEventPublisher;
   let mockOrder: any;
   let mockFindById: jest.SpyInstance;
   let mockFindOne: jest.SpyInstance;
@@ -13,7 +15,8 @@ describe('OrderService', () => {
   let mockFindByIdAndUpdate: jest.SpyInstance;
 
   beforeEach(() => {
-    orderService = new OrderService();
+    eventPublisher = new RabbitMQEventPublisher(rabbitMQClient);
+    orderService = new OrderService(eventPublisher);
     jest.clearAllMocks();
 
     // Crear spies para los métodos estáticos de Order
@@ -155,27 +158,19 @@ describe('OrderService', () => {
 
   describe('getOrderStatus', () => {
     it('debería obtener el estado de un pedido', async () => {
-      const mockOrderStatus = {
-        status: OrderStatus.PREPARING,
-        orderNumber: 'ORD-1234567890-001'
-      };
-      const mockSelect = jest.fn().mockResolvedValue(mockOrderStatus);
-      mockFindById.mockReturnValue({
-        select: mockSelect
-      } as any);
+      mockFindById.mockResolvedValue(mockOrder);
 
       const result = await orderService.getOrderStatus('507f1f77bcf86cd799439011');
 
       expect(mockFindById).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
-      expect(mockSelect).toHaveBeenCalledWith('status orderNumber');
-      expect(result).toEqual(mockOrderStatus);
+      expect(result).toEqual({
+        status: OrderStatus.PENDING,
+        orderNumber: 'ORD-1234567890-001'
+      });
     });
 
     it('debería retornar null si el pedido no existe', async () => {
-      const mockSelect = jest.fn().mockResolvedValue(null);
-      mockFindById.mockReturnValue({
-        select: mockSelect
-      } as any);
+      mockFindById.mockResolvedValue(null);
 
       const result = await orderService.getOrderStatus('507f1f77bcf86cd799439011');
 
@@ -185,35 +180,29 @@ describe('OrderService', () => {
 
   describe('updateOrderStatus', () => {
     it('debería actualizar el estado de un pedido y publicar evento', async () => {
-      const updatedOrder = {
-        ...mockOrder,
-        status: OrderStatus.PREPARING,
-        updatedAt: new Date('2024-01-02')
-      };
-      mockFindByIdAndUpdate.mockResolvedValue(updatedOrder);
+      mockFindById.mockResolvedValue(mockOrder);
 
       const result = await orderService.updateOrderStatus(
         '507f1f77bcf86cd799439011',
         OrderStatus.PREPARING
       );
 
-      expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
-        '507f1f77bcf86cd799439011',
-        { status: OrderStatus.PREPARING, updatedAt: expect.any(Date) },
-        { new: true }
-      );
+      expect(mockFindById).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+      expect(mockOrder.save).toHaveBeenCalled();
       expect(rabbitMQClient.publishEvent).toHaveBeenCalledWith(
-        'order.updated',
+        'order.status.updated',
         expect.objectContaining({
           orderId: '507f1f77bcf86cd799439011',
+          orderNumber: 'ORD-1234567890-001',
           status: OrderStatus.PREPARING
         })
       );
-      expect(result).toEqual(updatedOrder);
+      expect(result).not.toBeNull();
+      expect(result?.status).toBe(OrderStatus.PREPARING);
     });
 
     it('debería retornar null si el pedido no existe', async () => {
-      mockFindByIdAndUpdate.mockResolvedValue(null);
+      mockFindById.mockResolvedValue(null);
 
       const result = await orderService.updateOrderStatus(
         '507f1f77bcf86cd799439011',

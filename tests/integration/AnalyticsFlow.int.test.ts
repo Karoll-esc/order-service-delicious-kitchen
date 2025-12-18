@@ -7,12 +7,15 @@
  * FIRST: Rápidas, Aisladas, Repetibles, Auto-validantes, Oportunas
  */
 
+// Desmockear mongoose para tests de integración
+jest.unmock('mongoose');
+
 import request from 'supertest';
 import mongoose from 'mongoose';
-import { connectDatabase, closeDatabase } from '../../../src/config/database';
-import { Order, IOrder, OrderStatus } from '../../../src/models/Order';
+import { connectDatabase, closeDatabase } from '../../src/config/database';
+import { Order, IOrder, OrderStatus } from '../../src/models/Order';
 import express from 'express';
-import orderRoutes from '../../../src/routes/orderRoutes';
+import orderRoutes from '../../src/routes/orderRoutes';
 
 // Construimos una app Express solo para pruebas de integración
 const app = express();
@@ -34,6 +37,7 @@ async function seedOrders(): Promise<IOrder[]> {
     {
       orderNumber: 'ORD-INT-001',
       customerName: 'Ana',
+      customerEmail: 'ana@test.com',
       status: OrderStatus.DELIVERED,
       items: [
         { name: 'Hamburguesa', quantity: 2, price: 15 },
@@ -45,6 +49,7 @@ async function seedOrders(): Promise<IOrder[]> {
     {
       orderNumber: 'ORD-INT-002',
       customerName: 'Luis',
+      customerEmail: 'luis@test.com',
       status: OrderStatus.DELIVERED,
       items: [
         { name: 'Pizza', quantity: 1, price: 20 },
@@ -56,6 +61,7 @@ async function seedOrders(): Promise<IOrder[]> {
     {
       orderNumber: 'ORD-INT-003',
       customerName: 'María',
+      customerEmail: 'maria@test.com',
       status: OrderStatus.READY,
       items: [
         { name: 'Hamburguesa', quantity: 1, price: 15 },
@@ -71,22 +77,48 @@ async function seedOrders(): Promise<IOrder[]> {
   return docs as IOrder[];
 }
 
+let isConnected = false;
+
 beforeAll(async () => {
+  // Skip integration setup if tests are skipped
+  if (process.env.SKIP_INTEGRATION_TESTS) {
+    return;
+  }
+  
   // Conectar a la BD real (usa MONGODB_URL si está definida)
-  await connectDatabase();
+  try {
+    await connectDatabase();
+    isConnected = true;
+  } catch (error) {
+    console.warn('MongoDB no disponible, saltando tests de integración');
+  }
 });
 
 afterAll(async () => {
-  await clearData();
-  await closeDatabase();
-  await mongoose.disconnect();
+  if (!isConnected || process.env.SKIP_INTEGRATION_TESTS) {
+    return;
+  }
+  
+  try {
+    await clearData();
+    await closeDatabase();
+    await mongoose.disconnect();
+  } catch (error) {
+    // Ignorar errores de limpieza
+  }
 });
 
 beforeEach(async () => {
+  if (!isConnected || process.env.SKIP_INTEGRATION_TESTS) {
+    return;
+  }
   await clearData();
 });
 
-describe('INTEGRACIÓN: GET /internal/analytics', () => {
+// Skip integration tests if MongoDB is not available
+const describeIntegration = process.env.SKIP_INTEGRATION_TESTS ? describe.skip : describe;
+
+describeIntegration('INTEGRACIÓN: GET /internal/analytics', () => {
   test('debe retornar analíticas por mes con datos reales', async () => {
     // Qué valida: Agregación real por mes y productos top
     // Por qué: Verificar pipeline y mapeo con MongoDB y Express
@@ -141,7 +173,7 @@ describe('INTEGRACIÓN: GET /internal/analytics', () => {
   }, 8000);
 });
 
-describe('INTEGRACIÓN: POST /internal/analytics/export', () => {
+describeIntegration('INTEGRACIÓN: POST /internal/analytics/export', () => {
   test('debe devolver CSV válido con BOM y delimitador ";"', async () => {
     // Qué valida: Exportación CSV real vía streaming HTTP
     // Por qué: Evidencia de compatibilidad con Excel y locales ES
