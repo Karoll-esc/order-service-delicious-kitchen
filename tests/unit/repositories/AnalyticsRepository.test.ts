@@ -191,10 +191,10 @@ describe('AnalyticsRepository - Pruebas Unitarias', () => {
 
       const pipeline = mockAggregate.mock.calls[0][0];
 
-      // Assert: Debe contener $group con _id basado en periodo
+      // Assert: Debe contener $group con _id basado en periodo (usa campo $period de $addFields)
       const groupStage = pipeline.find((stage: any) => stage.$group && stage.$group._id);
       expect(groupStage).toBeDefined();
-      expect(groupStage.$group._id).toHaveProperty('$dateToString');
+      expect(groupStage.$group._id).toBe('$period'); // Campo calculado en $addFields
     });
 
     test('debe incluir acumuladores para totalOrders y totalRevenue', async () => {

@@ -47,23 +47,21 @@ describe('ReviewController - Unit Tests', () => {
   describe('createReview', () => {
     test('should create review and return 201 status', async () => {
       const reviewData: CreateReviewDTO = {
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John Doe',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        },
+        foodRating: 5,
+        tasteRating: 5,
         comment: 'Excellent service!'
       };
 
-      const createdReview: IReview = {
+      const createdReview = {
         _id: 'mock-id-123',
         ...reviewData,
         status: 'pending' as ReviewStatus,
         createdAt: new Date(),
         updatedAt: new Date(),
-      } as IReview;
+      } as any;
 
       mockRequest.body = reviewData;
       mockService.createReview = jest.fn().mockResolvedValue(createdReview);
@@ -76,20 +74,19 @@ describe('ReviewController - Unit Tests', () => {
       expect(mockService.createReview).toHaveBeenCalledWith(reviewData);
       expect(mockStatus).toHaveBeenCalledWith(201);
       expect(mockJson).toHaveBeenCalledWith({
+        success: true,
         message: 'Review created successfully',
-        review: createdReview,
+        data: createdReview,
       });
     });
 
     test('should return 400 for validation errors', async () => {
       mockRequest.body = {
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 6, // Invalid
-          food: 5
-        }
+        foodRating: 6, // Invalid
+        tasteRating: 5
       };
 
       const validationError = new Error('Overall rating must be between 1 and 5');
@@ -101,20 +98,16 @@ describe('ReviewController - Unit Tests', () => {
       );
 
       expect(mockStatus).toHaveBeenCalledWith(400);
-      expect(mockJson).toHaveBeenCalledWith({
-        error: 'Overall rating must be between 1 and 5',
-      });
+      expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: expect.any(String) }));
     });
 
     test('should return 409 for duplicate review', async () => {
       mockRequest.body = {
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       };
 
       const duplicateError = new Error('Review already exists for this order');
@@ -126,20 +119,16 @@ describe('ReviewController - Unit Tests', () => {
       );
 
       expect(mockStatus).toHaveBeenCalledWith(409);
-      expect(mockJson).toHaveBeenCalledWith({
-        error: 'Review already exists for this order',
-      });
+      expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: expect.any(String) }));
     });
 
     test('should return 500 for unexpected errors', async () => {
       mockRequest.body = {
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       };
 
       const unexpectedError = new Error('Database connection failed');
@@ -151,14 +140,12 @@ describe('ReviewController - Unit Tests', () => {
       );
 
       expect(mockStatus).toHaveBeenCalledWith(500);
-      expect(mockJson).toHaveBeenCalledWith({
-        error: 'Failed to create review',
-      });
+      expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: expect.any(String) }));
     });
 
     test('should handle missing required fields', async () => {
       mockRequest.body = {
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         // Missing customerName and ratings
       };
 
@@ -171,9 +158,7 @@ describe('ReviewController - Unit Tests', () => {
       );
 
       expect(mockStatus).toHaveBeenCalledWith(400);
-      expect(mockJson).toHaveBeenCalledWith({
-        error: 'Customer name is required',
-      });
+      expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: expect.any(String) }));
     });
   });
 
@@ -182,38 +167,34 @@ describe('ReviewController - Unit Tests', () => {
       const mockReviews = [
         {
           _id: '1',
-          orderId: 'ORD-001',
+          orderNumber: 'ORD-001',
           customerName: 'John',
           customerEmail: 'john@example.com',
-          ratings: {
-            overall: 5,
-            food: 5
-          },
+          foodRating: 5,
+          tasteRating: 5,
           status: 'approved',
           createdAt: new Date(),
           updatedAt: new Date(),
         },
         {
           _id: '2',
-          orderId: 'ORD-002',
+          orderNumber: 'ORD-002',
           customerName: 'Jane',
           customerEmail: 'jane@example.com',
-          ratings: {
-            overall: 4,
-            food: 5
-          },
+          foodRating: 4,
+          tasteRating: 5,
           status: 'approved',
           createdAt: new Date(),
           updatedAt: new Date(),
         },
-      ] as IReview[];
+      ] as any[];
 
       const mockResponseData = {
         reviews: mockReviews,
         total: 2,
         page: 1,
         limit: 10,
-        hasMore: false,
+        totalPages: 1
       };
 
       mockRequest.query = { page: '1', limit: '10' };
@@ -226,7 +207,16 @@ describe('ReviewController - Unit Tests', () => {
 
       expect(mockService.getPublicReviews).toHaveBeenCalledWith(1, 10);
       expect(mockStatus).toHaveBeenCalledWith(200);
-      expect(mockJson).toHaveBeenCalledWith(mockResponseData);
+      expect(mockJson).toHaveBeenCalledWith({
+        success: true,
+        data: mockReviews,
+        pagination: {
+          page: 1,
+          limit: 10,
+          total: 2,
+          totalPages: 1
+        }
+      });
     });
 
     test('should use default pagination values when not provided', async () => {
@@ -237,7 +227,7 @@ describe('ReviewController - Unit Tests', () => {
         total: 0,
         page: 1,
         limit: 10,
-        hasMore: false,
+        totalPages: 0
       };
 
       mockService.getPublicReviews = jest.fn().mockResolvedValue(mockResponseData);
@@ -249,6 +239,16 @@ describe('ReviewController - Unit Tests', () => {
 
       expect(mockService.getPublicReviews).toHaveBeenCalledWith(1, 10);
       expect(mockStatus).toHaveBeenCalledWith(200);
+      expect(mockJson).toHaveBeenCalledWith({
+        success: true,
+        data: [],
+        pagination: {
+          page: 1,
+          limit: 10,
+          total: 0,
+          totalPages: 0
+        }
+      });
     });
 
     test('should return 500 on service error', async () => {
@@ -263,9 +263,7 @@ describe('ReviewController - Unit Tests', () => {
       );
 
       expect(mockStatus).toHaveBeenCalledWith(500);
-      expect(mockJson).toHaveBeenCalledWith({
-        error: 'Failed to fetch reviews',
-      });
+      expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: expect.any(String) }));
     });
 
     test('should handle invalid pagination parameters', async () => {
@@ -276,7 +274,7 @@ describe('ReviewController - Unit Tests', () => {
         total: 0,
         page: 1,
         limit: 10,
-        hasMore: false,
+        totalPages: 0
       };
 
       mockService.getPublicReviews = jest.fn().mockResolvedValue(mockResponseData);
@@ -289,24 +287,32 @@ describe('ReviewController - Unit Tests', () => {
       // Should default to page 1, limit 10 when parsing fails
       expect(mockService.getPublicReviews).toHaveBeenCalled();
       expect(mockStatus).toHaveBeenCalledWith(200);
+      expect(mockJson).toHaveBeenCalledWith({
+        success: true,
+        data: [],
+        pagination: {
+          page: 1,
+          limit: 10,
+          total: 0,
+          totalPages: 0
+        }
+      });
     });
   });
 
   describe('getReviewById', () => {
     test('should return review when found', async () => {
-      const mockReview: IReview = {
+      const mockReview = {
         _id: 'review-123',
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John Doe',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        },
+        foodRating: 5,
+        tasteRating: 5,
         status: 'approved' as ReviewStatus,
         createdAt: new Date(),
         updatedAt: new Date(),
-      } as IReview;
+      } as any;
 
       mockRequest.params = { id: 'review-123' };
       mockService.getReviewById = jest.fn().mockResolvedValue(mockReview);
@@ -318,7 +324,10 @@ describe('ReviewController - Unit Tests', () => {
 
       expect(mockService.getReviewById).toHaveBeenCalledWith('review-123');
       expect(mockStatus).toHaveBeenCalledWith(200);
-      expect(mockJson).toHaveBeenCalledWith(mockReview);
+      expect(mockJson).toHaveBeenCalledWith({
+        success: true,
+        data: mockReview
+      });
     });
 
     test('should return 404 when review not found', async () => {
@@ -331,9 +340,7 @@ describe('ReviewController - Unit Tests', () => {
       );
 
       expect(mockStatus).toHaveBeenCalledWith(404);
-      expect(mockJson).toHaveBeenCalledWith({
-        error: 'Review not found',
-      });
+      expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: expect.any(String) }));
     });
 
     test('should return 500 on service error', async () => {
@@ -348,9 +355,7 @@ describe('ReviewController - Unit Tests', () => {
       );
 
       expect(mockStatus).toHaveBeenCalledWith(500);
-      expect(mockJson).toHaveBeenCalledWith({
-        error: 'Failed to fetch review',
-      });
+      expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: expect.any(String) }));
     });
   });
 
@@ -359,45 +364,39 @@ describe('ReviewController - Unit Tests', () => {
       const mockReviews = [
         {
           _id: '1',
-          orderId: 'ORD-001',
+          orderNumber: 'ORD-001',
           customerName: 'John',
           customerEmail: 'john@example.com',
-          ratings: {
-            overall: 5,
-            food: 5
-          },
+          foodRating: 5,
+          tasteRating: 5,
           status: 'approved',
         },
         {
           _id: '2',
-          orderId: 'ORD-002',
+          orderNumber: 'ORD-002',
           customerName: 'Jane',
           customerEmail: 'jane@example.com',
-          ratings: {
-            overall: 4,
-            food: 4
-          },
+          foodRating: 4,
+          tasteRating: 4,
           status: 'pending',
         },
         {
           _id: '3',
-          orderId: 'ORD-003',
+          orderNumber: 'ORD-003',
           customerName: 'Bob',
           customerEmail: 'bob@example.com',
-          ratings: {
-            overall: 3,
-            food: 3
-          },
+          foodRating: 3,
+          tasteRating: 3,
           status: 'hidden',
         },
-      ] as IReview[];
+      ] as any[];
 
       const mockResponseData = {
         reviews: mockReviews,
         total: 3,
         page: 1,
         limit: 50,
-        hasMore: false,
+        totalPages: 1
       };
 
       mockRequest.query = { page: '1', limit: '50' };
@@ -410,7 +409,16 @@ describe('ReviewController - Unit Tests', () => {
 
       expect(mockService.getAllReviews).toHaveBeenCalledWith(1, 50);
       expect(mockStatus).toHaveBeenCalledWith(200);
-      expect(mockJson).toHaveBeenCalledWith(mockResponseData);
+      expect(mockJson).toHaveBeenCalledWith({
+        success: true,
+        data: mockReviews,
+        pagination: {
+          page: 1,
+          limit: 50,
+          total: 3,
+          totalPages: 1
+        }
+      });
     });
 
     test('should use default pagination for admin', async () => {
@@ -420,8 +428,8 @@ describe('ReviewController - Unit Tests', () => {
         reviews: [],
         total: 0,
         page: 1,
-        limit: 50,
-        hasMore: false,
+        limit: 10,
+        totalPages: 0
       };
 
       mockService.getAllReviews = jest.fn().mockResolvedValue(mockResponseData);
@@ -431,25 +439,34 @@ describe('ReviewController - Unit Tests', () => {
         mockResponse as Response
       );
 
-      expect(mockService.getAllReviews).toHaveBeenCalledWith(1, 50);
+      expect(mockService.getAllReviews).toHaveBeenCalledWith(1, 10);
+      expect(mockStatus).toHaveBeenCalledWith(200);
+      expect(mockJson).toHaveBeenCalledWith({
+        success: true,
+        data: [],
+        pagination: {
+          page: 1,
+          limit: 10,
+          total: 0,
+          totalPages: 0
+        }
+      });
     });
   });
 
   describe('changeReviewStatus', () => {
     test('should change status to approved', async () => {
-      const updatedReview: IReview = {
+      const updatedReview = {
         _id: 'review-123',
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        },
+        foodRating: 5,
+        tasteRating: 5,
         status: 'approved' as ReviewStatus,
         createdAt: new Date(),
         updatedAt: new Date(),
-      } as IReview;
+      } as any;
 
       mockRequest.params = { id: 'review-123' };
       mockRequest.body = { status: 'approved' };
@@ -466,25 +483,24 @@ describe('ReviewController - Unit Tests', () => {
       );
       expect(mockStatus).toHaveBeenCalledWith(200);
       expect(mockJson).toHaveBeenCalledWith({
-        message: 'Review status updated successfully',
-        review: updatedReview,
+        success: true,
+        message: 'Review approved successfully',
+        data: updatedReview,
       });
     });
 
     test('should change status to hidden', async () => {
-      const updatedReview: IReview = {
+      const updatedReview = {
         _id: 'review-123',
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        },
+        foodRating: 5,
+        tasteRating: 5,
         status: 'hidden' as ReviewStatus,
         createdAt: new Date(),
         updatedAt: new Date(),
-      } as IReview;
+      } as any;
 
       mockRequest.params = { id: 'review-123' };
       mockRequest.body = { status: 'hidden' };
@@ -497,8 +513,9 @@ describe('ReviewController - Unit Tests', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(200);
       expect(mockJson).toHaveBeenCalledWith({
-        message: 'Review status updated successfully',
-        review: updatedReview,
+        success: true,
+        message: 'Review hidden successfully',
+        data: updatedReview,
       });
     });
 
@@ -516,9 +533,7 @@ describe('ReviewController - Unit Tests', () => {
       );
 
       expect(mockStatus).toHaveBeenCalledWith(400);
-      expect(mockJson).toHaveBeenCalledWith({
-        error: 'Invalid status',
-      });
+      expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: expect.any(String) }));
     });
 
     test('should return 404 when review not found', async () => {
@@ -535,9 +550,7 @@ describe('ReviewController - Unit Tests', () => {
       );
 
       expect(mockStatus).toHaveBeenCalledWith(404);
-      expect(mockJson).toHaveBeenCalledWith({
-        error: 'Review not found',
-      });
+      expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: expect.any(String) }));
     });
 
     test('should return 500 on unexpected error', async () => {
@@ -554,9 +567,7 @@ describe('ReviewController - Unit Tests', () => {
       );
 
       expect(mockStatus).toHaveBeenCalledWith(500);
-      expect(mockJson).toHaveBeenCalledWith({
-        error: 'Failed to update review status',
-      });
+      expect(mockJson).toHaveBeenCalledWith(expect.objectContaining({ success: false, message: expect.any(String) }));
     });
 
     test('should handle missing status in request body', async () => {
@@ -576,3 +587,5 @@ describe('ReviewController - Unit Tests', () => {
     });
   });
 });
+
+

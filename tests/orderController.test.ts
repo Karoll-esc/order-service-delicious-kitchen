@@ -66,10 +66,12 @@ describe('OrderController', () => {
 
       expect(orderService.createOrder).toHaveBeenCalledWith(
         'Juan Pérez',
-        [{ name: 'Pizza Margherita', quantity: 2, price: 15.99 }]
+        [{ name: 'Pizza Margherita', quantity: 2, price: 15.99 }],
+        undefined // customerEmail opcional
       );
       expect(mockStatus).toHaveBeenCalledWith(201);
       expect(mockJson).toHaveBeenCalledWith({
+        success: true,
         message: 'Pedido creado exitosamente',
         order: expect.objectContaining({
           orderNumber: 'ORD-1234567890-001',
@@ -93,6 +95,7 @@ describe('OrderController', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(400);
       expect(mockJson).toHaveBeenCalledWith({
+        success: false,
         error: 'El nombre del cliente es requerido'
       });
       expect(orderService.createOrder).not.toHaveBeenCalled();
@@ -113,6 +116,7 @@ describe('OrderController', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(400);
       expect(mockJson).toHaveBeenCalledWith({
+        success: false,
         error: 'El nombre del cliente es requerido'
       });
     });
@@ -132,6 +136,7 @@ describe('OrderController', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(400);
       expect(mockJson).toHaveBeenCalledWith({
+        success: false,
         error: 'El pedido debe tener al menos un item'
       });
     });
@@ -153,6 +158,7 @@ describe('OrderController', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(400);
       expect(mockJson).toHaveBeenCalledWith({
+        success: false,
         error: 'Cada item debe tener name, quantity y price'
       });
     });
@@ -175,6 +181,7 @@ describe('OrderController', () => {
       expect(mockStatus).toHaveBeenCalledWith(400);
       // quantity: 0 es falsy, por lo que se activa la primera validación
       expect(mockJson).toHaveBeenCalledWith({
+        success: false,
         error: 'Cada item debe tener name, quantity y price'
       });
     });
@@ -196,6 +203,7 @@ describe('OrderController', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(400);
       expect(mockJson).toHaveBeenCalledWith({
+        success: false,
         error: 'Quantity debe ser mayor a 0 y price debe ser mayor o igual a 0'
       });
     });
@@ -217,6 +225,7 @@ describe('OrderController', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(400);
       expect(mockJson).toHaveBeenCalledWith({
+        success: false,
         error: 'Quantity debe ser mayor a 0 y price debe ser mayor o igual a 0'
       });
     });
@@ -239,6 +248,7 @@ describe('OrderController', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(500);
       expect(mockJson).toHaveBeenCalledWith({
+        success: false,
         error: 'Error al crear el pedido',
         details: 'Error de base de datos'
       });
@@ -293,6 +303,7 @@ describe('OrderController', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(404);
       expect(mockJson).toHaveBeenCalledWith({
+        success: false,
         error: 'Pedido no encontrado'
       });
     });
@@ -312,6 +323,7 @@ describe('OrderController', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(500);
       expect(mockJson).toHaveBeenCalledWith({
+        success: false,
         error: 'Error al obtener el pedido',
         details: 'Error de base de datos'
       });
@@ -357,6 +369,7 @@ describe('OrderController', () => {
 
       expect(mockStatus).toHaveBeenCalledWith(404);
       expect(mockJson).toHaveBeenCalledWith({
+        success: false,
         error: 'Pedido no encontrado'
       });
     });

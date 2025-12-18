@@ -72,10 +72,12 @@ export class AnalyticsResponseMapper {
 
   private mapProducts(products: any[]): Array<{ productId: string; name: string; quantity: number; revenue: number }> {
     return products.map((p: any) => ({
-      productId: p._id.productId,
-      name: p._id.name,
+      productId: typeof p._id === 'object' ? p._id.productId : p._id,
+      name: typeof p._id === 'object' ? p._id.name : p.name,
       quantity: p.quantity,
-      revenue: Number(p.revenue.toFixed(2))
+      revenue: p.revenue !== undefined && p.revenue !== null 
+        ? Number(p.revenue.toFixed(2)) 
+        : 0
     }));
   }
 }

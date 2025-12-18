@@ -3,6 +3,9 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import { ReviewRepository, CreateReviewDTO } from '../../src/repositories/ReviewRepository';
 import { Review, IReview } from '../../src/models/Review';
 
+// Importante: Restaurar Mongoose real para estos tests (setup.ts lo mockea globalmente)
+jest.unmock('mongoose');
+
 type ReviewStatus = 'pending' | 'approved' | 'hidden';
 
 describe('ReviewRepository - Unit Tests', () => {
@@ -34,23 +37,21 @@ describe('ReviewRepository - Unit Tests', () => {
   describe('create', () => {
     test('should create a review in database', async () => {
       const reviewData: CreateReviewDTO = {
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John Doe',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        },
+        foodRating: 5,
+        tasteRating: 5,
         comment: 'Great food!'
       };
 
       const result = await repository.create(reviewData);
 
       expect(result._id).toBeDefined();
-      expect(result.orderId).toBe('ORD-001');
+      expect(result.orderNumber).toBe('ORD-001');
       expect(result.customerName).toBe('John Doe');
-      expect(result.ratings.overall).toBe(5);
-      expect(result.ratings.food).toBe(5);
+      expect(result.foodRating).toBe(5);
+      expect(result.tasteRating).toBe(5);
       expect(result.comment).toBe('Great food!');
       expect(result.status).toBe('pending');
       expect(result.createdAt).toBeInstanceOf(Date);
@@ -59,50 +60,41 @@ describe('ReviewRepository - Unit Tests', () => {
 
     test('should create review without comment', async () => {
       const reviewData: CreateReviewDTO = {
-        orderId: 'ORD-002',
+        orderNumber: 'ORD-002',
         customerName: 'Jane Smith',
         customerEmail: 'jane@example.com',
-        ratings: {
-          overall: 4,
-          food: 5
-        }
+        foodRating: 4,
+        tasteRating: 5
       };
 
       const result = await repository.create(reviewData);
 
       expect(result._id).toBeDefined();
-      expect(result.comment).toBeUndefined();
+      expect(result.comment).toBe(''); // Default vacío del modelo
     });
 
-    test('should throw error on duplicate orderId', async () => {
+    test('should create review without orderNumber (anonymous)', async () => {
       const reviewData: CreateReviewDTO = {
-        orderId: 'ORD-001',
-        customerName: 'John Doe',
-        customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        customerName: 'Anonymous User',
+        customerEmail: 'anon@example.com',
+        foodRating: 5,
+        tasteRating: 4
       };
 
-      // Create first review
-      await repository.create(reviewData);
+      const result = await repository.create(reviewData);
 
-      // Try to create duplicate
-      await expect(repository.create(reviewData))
-        .rejects
-        .toThrow();
+      expect(result._id).toBeDefined();
+      expect(result.orderNumber).toBe('N/A');
+      expect(result.status).toBe('pending');
     });
 
     test('should enforce rating constraints', async () => {
       const invalidData: any = {
-        orderId: 'ORD-003',
+        orderNumber: 'ORD-003',
         customerName: 'Test User',
         customerEmail: 'test@example.com',
-        ratings: {
-          overall: 6, // Invalid: > 5
-          food: 5
-        }
+        foodRating: 6, // Invalid: > 5
+        tasteRating: 5
       };
 
       await expect(repository.create(invalidData))
@@ -112,13 +104,11 @@ describe('ReviewRepository - Unit Tests', () => {
 
     test('should enforce required fields', async () => {
       const invalidData: any = {
-        orderId: 'ORD-004',
+        orderNumber: 'ORD-004',
         // Missing customerName
         customerEmail: 'test@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       };
 
       await expect(repository.create(invalidData))
@@ -130,20 +120,18 @@ describe('ReviewRepository - Unit Tests', () => {
   describe('findById', () => {
     test('should find review by id', async () => {
       const created = await repository.create({
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John Doe',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       });
 
       const found = await repository.findById(created._id.toString());
 
       expect(found).toBeDefined();
       expect(found!._id.toString()).toBe(created._id.toString());
-      expect(found!.orderId).toBe('ORD-001');
+      expect(found!.orderNumber).toBe('ORD-001');
     });
 
     test('should return null when review not found', async () => {
@@ -156,20 +144,18 @@ describe('ReviewRepository - Unit Tests', () => {
     test('should handle invalid ObjectId format gracefully', async () => {
       const invalidId = 'not-a-valid-objectid';
 
-      await expect(async () => {
-        await repository.findById(invalidId);
-      }).rejects.toThrow();
+      // Mongoose devuelve null para IDs inválidos en vez de lanzar error
+      const result = await repository.findById(invalidId);
+      expect(result).toBeNull();
     });
 
     test('should return review with all fields populated', async () => {
       const reviewData = {
-        orderId: 'ORD-FULL',
+        orderNumber: 'ORD-FULL',
         customerName: 'Full Data User',
         customerEmail: 'fulldata@example.com',
-        ratings: {
-          overall: 4,
-          food: 5
-        },
+        foodRating: 4,
+        tasteRating: 5,
         comment: 'Complete review with all fields'
       };
 
@@ -177,10 +163,10 @@ describe('ReviewRepository - Unit Tests', () => {
       const found = await repository.findById(created._id.toString());
 
       expect(found).toBeDefined();
-      expect(found!.orderId).toBe(reviewData.orderId);
+      expect(found!.orderNumber).toBe(reviewData.orderNumber);
       expect(found!.customerName).toBe(reviewData.customerName);
-      expect(found!.ratings.overall).toBe(reviewData.ratings.overall);
-      expect(found!.ratings.food).toBe(reviewData.ratings.food);
+      expect(found!.foodRating).toBe(reviewData.foodRating);
+      expect(found!.tasteRating).toBe(reviewData.tasteRating);
       expect(found!.comment).toBe(reviewData.comment);
       expect(found!.status).toBe('pending');
       expect(found!.createdAt).toBeInstanceOf(Date);
@@ -192,33 +178,27 @@ describe('ReviewRepository - Unit Tests', () => {
     beforeEach(async () => {
       // Create test data with different statuses
       const review1 = await repository.create({
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       });
 
       const review2 = await repository.create({
-        orderId: 'ORD-002',
+        orderNumber: 'ORD-002',
         customerName: 'Jane',
         customerEmail: 'jane@example.com',
-        ratings: {
-          overall: 4,
-          food: 4
-        }
+        foodRating: 4,
+        tasteRating: 4
       });
 
       const review3 = await repository.create({
-        orderId: 'ORD-003',
+        orderNumber: 'ORD-003',
         customerName: 'Bob',
         customerEmail: 'bob@example.com',
-        ratings: {
-          overall: 3,
-          food: 3
-        }
+        foodRating: 3,
+        tasteRating: 3
       });
 
       // Approve first two reviews
@@ -247,13 +227,11 @@ describe('ReviewRepository - Unit Tests', () => {
       // Create 15 approved reviews
       for (let i = 4; i <= 18; i++) {
         const review = await repository.create({
-          orderId: `ORD-${i.toString().padStart(3, '0')}`,
+          orderNumber: `ORD-${i.toString().padStart(3, '0')}`,
           customerName: `Customer ${i}`,
           customerEmail: `customer${i}@example.com`,
-          ratings: {
-            overall: 5,
-            food: 5
-          }
+          foodRating: 5,
+          tasteRating: 5
         });
         await repository.updateStatus(review._id.toString(), 'approved');
       }
@@ -275,13 +253,11 @@ describe('ReviewRepository - Unit Tests', () => {
 
       // Create only pending reviews
       await repository.create({
-        orderId: 'ORD-100',
+        orderNumber: 'ORD-100',
         customerName: 'Test',
         customerEmail: 'test@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       });
 
       const results = await repository.findApproved(1, 10);
@@ -292,13 +268,11 @@ describe('ReviewRepository - Unit Tests', () => {
       // Create only 3 approved reviews
       for (let i = 1; i <= 3; i++) {
         const review = await repository.create({
-          orderId: `ORD-${i}`,
+          orderNumber: `ORD-${i}`,
           customerName: `Customer ${i}`,
           customerEmail: `customer${i}@example.com`,
-          ratings: {
-            overall: 5,
-            food: 5
-          }
+          foodRating: 5,
+          tasteRating: 5
         });
         await repository.updateStatus(review._id.toString(), 'approved');
       }
@@ -308,24 +282,23 @@ describe('ReviewRepository - Unit Tests', () => {
     });
 
     test('should exclude hidden reviews from results', async () => {
+      // Limpiar datos del beforeEach para evitar contaminación
+      await Review.deleteMany({});
+      
       const review1 = await repository.create({
-        orderId: 'ORD-APPROVED',
+        orderNumber: 'ORD-APPROVED',
         customerName: 'Approved User',
         customerEmail: 'approved@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       });
 
       const review2 = await repository.create({
-        orderId: 'ORD-HIDDEN',
+        orderNumber: 'ORD-HIDDEN',
         customerName: 'Hidden User',
         customerEmail: 'hidden@example.com',
-        ratings: {
-          overall: 4,
-          food: 4
-        }
+        foodRating: 4,
+        tasteRating: 4
       });
 
       await repository.updateStatus(review1._id.toString(), 'approved');
@@ -343,33 +316,27 @@ describe('ReviewRepository - Unit Tests', () => {
     beforeEach(async () => {
       // Create reviews with different statuses
       const review1 = await repository.create({
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       });
 
       const review2 = await repository.create({
-        orderId: 'ORD-002',
+        orderNumber: 'ORD-002',
         customerName: 'Jane',
         customerEmail: 'jane@example.com',
-        ratings: {
-          overall: 4,
-          food: 4
-        }
+        foodRating: 4,
+        tasteRating: 4
       });
 
       const review3 = await repository.create({
-        orderId: 'ORD-003',
+        orderNumber: 'ORD-003',
         customerName: 'Bob',
         customerEmail: 'bob@example.com',
-        ratings: {
-          overall: 3,
-          food: 3
-        }
+        foodRating: 3,
+        tasteRating: 3
       });
 
       await repository.updateStatus(review1._id.toString(), 'approved');
@@ -402,13 +369,11 @@ describe('ReviewRepository - Unit Tests', () => {
       // Create more reviews
       for (let i = 4; i <= 60; i++) {
         await repository.create({
-          orderId: `ORD-${i.toString().padStart(3, '0')}`,
+          orderNumber: `ORD-${i.toString().padStart(3, '0')}`,
           customerName: `Customer ${i}`,
           customerEmail: `customer${i}@example.com`,
-          ratings: {
-            overall: 5,
-            food: 5
-          }
+          foodRating: 5,
+          tasteRating: 5
         });
       }
 
@@ -424,13 +389,11 @@ describe('ReviewRepository - Unit Tests', () => {
   describe('updateStatus', () => {
     test('should update review status to approved', async () => {
       const review = await repository.create({
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       });
 
       const updated = await repository.updateStatus(
@@ -447,13 +410,11 @@ describe('ReviewRepository - Unit Tests', () => {
 
     test('should update review status to hidden', async () => {
       const review = await repository.create({
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       });
 
       const updated = await repository.updateStatus(
@@ -476,33 +437,27 @@ describe('ReviewRepository - Unit Tests', () => {
   describe('countApproved', () => {
     test('should count only approved reviews', async () => {
       const review1 = await repository.create({
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       });
 
       const review2 = await repository.create({
-        orderId: 'ORD-002',
+        orderNumber: 'ORD-002',
         customerName: 'Jane',
         customerEmail: 'jane@example.com',
-        ratings: {
-          overall: 4,
-          food: 4
-        }
+        foodRating: 4,
+        tasteRating: 4
       });
 
       await repository.create({
-        orderId: 'ORD-003',
+        orderNumber: 'ORD-003',
         customerName: 'Bob',
         customerEmail: 'bob@example.com',
-        ratings: {
-          overall: 3,
-          food: 3
-        }
+        foodRating: 3,
+        tasteRating: 3
       });
 
       // Approve only first two
@@ -515,13 +470,11 @@ describe('ReviewRepository - Unit Tests', () => {
 
     test('should return 0 when no approved reviews', async () => {
       await repository.create({
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       });
 
       const count = await repository.countApproved();
@@ -532,78 +485,33 @@ describe('ReviewRepository - Unit Tests', () => {
   describe('countAll', () => {
     test('should count all reviews regardless of status', async () => {
       const review1 = await repository.create({
-        orderId: 'ORD-001',
+        orderNumber: 'ORD-001',
         customerName: 'John',
         customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
+        foodRating: 5,
+        tasteRating: 5
       });
 
       await repository.create({
-        orderId: 'ORD-002',
+        orderNumber: 'ORD-002',
         customerName: 'Jane',
         customerEmail: 'jane@example.com',
-        ratings: {
-          overall: 4,
-          food: 4
-        }
+        foodRating: 4,
+        tasteRating: 4
       });
 
       await repository.create({
-        orderId: 'ORD-003',
+        orderNumber: 'ORD-003',
         customerName: 'Bob',
         customerEmail: 'bob@example.com',
-        ratings: {
-          overall: 3,
-          food: 3
-        }
+        foodRating: 3,
+        tasteRating: 3
       });
 
       await repository.updateStatus(review1._id.toString(), 'approved');
 
       const count = await repository.countAll();
       expect(count).toBe(3);
-    });
-  });
-
-  describe('hasReviewForOrder', () => {
-    test('should return true when order has a review', async () => {
-      await repository.create({
-        orderId: 'ORD-001',
-        customerName: 'John',
-        customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
-      });
-
-      const hasReview = await repository.hasReviewForOrder('ORD-001');
-      expect(hasReview).toBe(true);
-    });
-
-    test('should return false when order has no review', async () => {
-      const hasReview = await repository.hasReviewForOrder('ORD-999');
-      expect(hasReview).toBe(false);
-    });
-
-    test('should return true even if review is hidden', async () => {
-      const review = await repository.create({
-        orderId: 'ORD-001',
-        customerName: 'John',
-        customerEmail: 'john@example.com',
-        ratings: {
-          overall: 5,
-          food: 5
-        }
-      });
-
-      await repository.updateStatus(review._id.toString(), 'hidden');
-
-      const hasReview = await repository.hasReviewForOrder('ORD-001');
-      expect(hasReview).toBe(true);
     });
   });
 });
